@@ -1,25 +1,42 @@
-use evtx::EvtxParser;
-use std::path::PathBuf;
+use std::process::Command;
 
-fn main() {
-    // Define the path to the .evtx file
-    let fp = PathBuf::from(format!(
-        "{}/samples/security.evtx",
-        std::env::var("CARGO_MANIFEST_DIR").unwrap()
-    ));
+fn export_logs(logs: &[&str], output_dir: &str) {
+    for log in logs {
+        let output_file = format!("{}/{}.evtx", output_dir, log);
 
-    // Create a parser for the .evtx file
-    let mut parser = EvtxParser::from_path(fp).expect("Failed to open the .evtx file");
+        println!("Exporting log: {} to {}", log, output_file);
 
-    // Iterate through the records
-    for record in parser.records() {
-        match record {
-            Ok(r) => {
-                println!("Record ID: {}\nData: {}", r.event_record_id, r.data);
+        let result = Command::new("wevtutil")
+            .args(&["epl", log, &output_file])
+            .output();
+
+        match result {
+            Ok(output) => {
+                if output.status.success() {
+                    println!("Successfully exported: {}", log);
+                } else {
+                    eprintln!(
+                        "Failed to export: {}. Error: {}",
+                        log,
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
             }
-            Err(e) => {
-                eprintln!("Error parsing record: {}", e);
-            }
+            Err(e) => eprintln!("Error running command for {}: {}", log, e),
         }
     }
+}
+
+fn main() {
+    // List of logs to export
+    let logs = ["Application", "Security", "System"];
+    
+    // Output directory for exported logs
+    let output_dir = "C:/Logs";
+
+    // Create output directory if needed
+    std::fs::create_dir_all(output_dir).expect("Failed to create output directory");
+
+    // Export the logs
+    export_logs(&logs, output_dir);
 }
